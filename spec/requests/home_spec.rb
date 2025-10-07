@@ -77,8 +77,7 @@ RSpec.describe "Home", type: :request do
 
       it "sets success flash message" do
         post contact_path, params: valid_params, headers: { 'Content-Type' => 'application/x-www-form-urlencoded', 'X-Forwarded-Proto' => 'https' }
-        follow_redirect!
-        expect(response.body).to include("Thank you for your message! We'll get back to you soon.")
+        expect(flash[:success]).to eq("Thank you for your message! We'll get back to you soon.")
       end
     end
 

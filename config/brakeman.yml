@@ -1,0 +1,45 @@
+# Brakeman configuration for security scanning
+# https://brakemanscanner.org/docs/options/
+
+# Application path (default is current directory)
+app_path: "."
+
+# Rails version (will be auto-detected if not specified)
+# rails_version: "7.1"
+
+# Output format options: text, html, json, junit, csv, codeclimate
+output_format: text
+
+# Exit codes:
+# 0 - No warnings
+# 3 - Warnings found
+# 4 - Errors found  
+# 5 - Brakeman is not latest version (when --ensure-latest is used)
+exit_on_warn: false
+exit_on_error: true
+
+# Confidence levels: High (1), Medium (2), Weak (3)
+# Only report issues with confidence level at or above this threshold
+min_confidence: 2
+
+# Paths to ignore
+skip_files:
+  - "config/routes.rb"
+  - "db/migrate/*.rb"
+  - "vendor/**/*.rb"
+
+# Specific checks to skip (if needed)
+# skip_checks:
+#   - "SQL"
+#   - "CrossSiteScripting"
+
+# Additional options
+quiet: false
+pager: false
+
+# GitHub Actions friendly output
+format: text
+no_pager: true
+
+# Don't check for latest version in CI (avoids exit code 5)
+ensure_latest: false

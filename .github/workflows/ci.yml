@@ -20,7 +20,10 @@ jobs:
           docker run --rm -v ${{ github.workspace }}:/rails -w /rails --user root rails-devcontainer \
             bash -c "
               chown -R rails:rails /rails &&
-              su rails -c 'bundle install --jobs 4 --retry 3 && bin/brakeman --no-pager'
+              su rails -c '
+                bundle install --jobs 4 --retry 3 && 
+                bundle exec brakeman --config-file config/brakeman.yml
+              '
             "
 
   scan_js:
