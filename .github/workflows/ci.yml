@@ -17,8 +17,11 @@ jobs:
 
       - name: Run Brakeman security scan
         run: |
-          docker run --rm -v ${{ github.workspace }}:/rails -w /rails rails-devcontainer \
-            bash -c "bundle install --jobs 4 --retry 3 && bin/brakeman --no-pager"
+          docker run --rm -v ${{ github.workspace }}:/rails -w /rails --user root rails-devcontainer \
+            bash -c "
+              chown -R rails:rails /rails &&
+              su rails -c 'bundle install --jobs 4 --retry 3 && bin/brakeman --no-pager'
+            "
 
   scan_js:
     runs-on: ubuntu-latest
@@ -31,8 +34,11 @@ jobs:
 
       - name: Run importmap audit
         run: |
-          docker run --rm -v ${{ github.workspace }}:/rails -w /rails rails-devcontainer \
-            bash -c "bundle install --jobs 4 --retry 3 && bin/importmap audit"
+          docker run --rm -v ${{ github.workspace }}:/rails -w /rails --user root rails-devcontainer \
+            bash -c "
+              chown -R rails:rails /rails &&
+              su rails -c 'bundle install --jobs 4 --retry 3 && bin/importmap audit'
+            "
 
   lint:
     runs-on: ubuntu-latest
@@ -45,38 +51,68 @@ jobs:
 
       - name: Run RuboCop linting
         run: |
-          docker run --rm -v ${{ github.workspace }}:/rails -w /rails rails-devcontainer \
-            bash -c "bundle install --jobs 4 --retry 3 && bin/rubocop -f github"
+          docker run --rm -v ${{ github.workspace }}:/rails -w /rails --user root rails-devcontainer \
+            bash -c "
+              chown -R rails:rails /rails &&
+              su rails -c 'bundle install --jobs 4 --retry 3 && bin/rubocop -f github'
+            "
 
   test:
     runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: docker_rails_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create test environment with docker-compose
-        run: |
-          # Use the existing devcontainer docker-compose setup
-          cd .devcontainer
-          docker-compose -f docker-compose.yaml up -d postgres redis
-          
-          # Wait for services to be ready
-          docker-compose -f docker-compose.yaml exec -T postgres pg_isready -U postgres
-          docker-compose -f docker-compose.yaml exec -T redis redis-cli ping
+      - name: Build devcontainer image
+        run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
 
-      - name: Build and run tests in devcontainer
+      - name: Run tests in devcontainer
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:password@localhost:5432/docker_rails_test
+          REDIS_URL: redis://localhost:6379/1
         run: |
-          cd .devcontainer
-          # Build the Rails container
-          docker-compose -f docker-compose.yaml build rails-test
-          
-          # Run tests
-          docker-compose -f docker-compose.yaml run --rm -e RAILS_ENV=test rails-test \
+          docker run --rm -v ${{ github.workspace }}:/rails -w /rails --user root \
+            --network host \
+            -e RAILS_ENV=test \
+            -e DATABASE_URL=postgres://postgres:password@localhost:5432/docker_rails_test \
+            -e REDIS_URL=redis://localhost:6379/1 \
+            rails-devcontainer \
             bash -c "
-              bundle install --jobs 4 --retry 3 &&
-              bin/rails db:create db:migrate RAILS_ENV=test &&
-              bundle exec rspec --format documentation &&
-              bin/rails test:system
+              chown -R rails:rails /rails &&
+              su rails -c '
+                bundle install --jobs 4 --retry 3 &&
+                bin/rails db:create db:migrate RAILS_ENV=test &&
+                bundle exec rspec --format documentation &&
+                bin/rails test:system
+              '
             "
 
       - name: Keep screenshots from failed system tests
@@ -86,9 +122,3 @@ jobs:
           name: screenshots
           path: ${{ github.workspace }}/tmp/screenshots
           if-no-files-found: ignore
-
-      - name: Cleanup
-        if: always()
-        run: |
-          cd .devcontainer
-          docker-compose -f docker-compose.yaml down -v
