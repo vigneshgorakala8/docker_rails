@@ -1,0 +1,93 @@
+{
+  "name": "Docker Rails Development",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "rails",
+  "workspaceFolder": "/rails",
+  "shutdownAction": "stopCompose",
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rebornix.ruby",
+        "castwide.solargraph",
+        "kaiwood.endwise",
+        "misogi.ruby-rubocop",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "formulahendry.auto-rename-tag",
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "github.copilot",
+        "ms-vscode.test-adapter-converter",
+        "hbenl.vscode-test-explorer",
+        "connorshea.vscode-ruby-test-adapter"
+      ],
+      "settings": {
+        "ruby.rubocop.executePath": "/usr/local/bundle/bin/",
+        "ruby.rubocop.onSave": true,
+        "ruby.format": "rubocop",
+        "ruby.lint": {
+          "rubocop": true
+        },
+        "solargraph.useBundler": true,
+        "solargraph.bundlerPath": "/usr/local/bundle/bin/bundle",
+        "solargraph.diagnostics": true,
+        "solargraph.completion": true,
+        "solargraph.hover": true,
+        "solargraph.definitions": true,
+        "solargraph.rename": true,
+        "solargraph.references": true,
+        "solargraph.symbols": true,
+        "files.associations": {
+          "*.rb": "ruby",
+          "*.erb": "erb",
+          "Gemfile": "ruby",
+          "Rakefile": "ruby",
+          "*.rake": "ruby"
+        },
+        "emmet.includeLanguages": {
+          "erb": "html"
+        },
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash"
+          }
+        }
+      }
+    }
+  },
+  
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  
+  "forwardPorts": [3000, 5432, 9292],
+  "portsAttributes": {
+    "3000": {
+      "label": "Rails Server",
+      "onAutoForward": "openBrowser"
+    },
+    "5432": {
+      "label": "PostgreSQL"
+    },
+    "9292": {
+      "label": "Gemstash Server"
+    }
+  },
+  
+  "postCreateCommand": "bundle install && yarn install",
+  
+  "remoteUser": "rails",
+  
+  "mounts": [
+    "source=${localWorkspaceFolder}/.vscode,target=/rails/.vscode,type=bind",
+    "source=rails-bundle-cache,target=/usr/local/bundle,type=volume"
+  ]
+} 

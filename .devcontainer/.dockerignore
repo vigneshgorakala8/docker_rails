@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README*
+CHANGELOG*
+
+# Development files
+.devcontainer/
+.vscode/
+*.log
+*.tmp
+*.temp
+
+# Dependencies
+node_modules/
+vendor/bundle/
+
+# Cache
+tmp/
+.bundle/
+.cache/
+
+# Database
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+spec/
+test/
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+dist/
+build/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~ 

@@ -1,0 +1,80 @@
+# Omakase Ruby styling for Rails
+inherit_gem: { rubocop-rails-omakase: rubocop.yml }
+
+plugins:
+  - rubocop-performance
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'db/schema.rb'
+    - 'db/migrate/*'
+    - 'node_modules/**/*'
+    - 'tmp/**/*'
+    - 'bin/**/*'
+    - 'config/boot.rb'
+    - 'config/environment.rb'
+    - 'config/application.rb'
+    - 'config/environments/*'
+    - 'config/initializers/*'
+
+# Performance optimizations
+Performance:
+  Enabled: true
+
+# RSpec specific rules
+RSpec:
+  Enabled: true
+
+# Overwrite or add rules to create your own house style
+#
+# # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
+# Layout/SpaceInsideArrayLiteralBrackets:
+#   Enabled: false
+
+# Allow longer line lengths for readability
+Layout/LineLength:
+  Max: 120
+  Exclude:
+    - 'config/routes.rb'
+
+# Allow more complex methods in specs
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
+    - 'config/routes.rb'
+
+# Allow longer methods in specs
+Metrics/MethodLength:
+  Exclude:
+    - 'spec/**/*'
+
+# RSpec specific configurations
+RSpec/MultipleExpectations:
+  Max: 10
+  Exclude:
+    - 'spec/system/**/*'
+    - 'spec/features/**/*'
+    - 'spec/integration/**/*'
+
+RSpec/ExampleLength:
+  Max: 20
+  Exclude:
+    - 'spec/system/**/*'
+    - 'spec/features/**/*'
+    - 'spec/integration/**/*'
+
+# Allow nested groups in specs for better organization
+RSpec/NestedGroups:
+  Max: 5
+
+# Allow longer describe blocks
+RSpec/DescribeClass:
+  Exclude:
+    - 'spec/system/**/*'
+    - 'spec/features/**/*'
+    - 'spec/integration/**/*'
+    - 'spec/requests/**/*'

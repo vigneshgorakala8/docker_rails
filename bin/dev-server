@@ -1,0 +1,31 @@
+#!/bin/bash
+set -e
+
+# Install gems if needed
+if [ ! -f "vendor/bundle/config" ]; then
+  echo "Installing gems..."
+  bundle install
+fi
+
+# Ensure SSL certificates exist for care.lvh.me
+if [ ! -f "config/ssl/care.lvh.me.key" ] || [ ! -f "config/ssl/care.lvh.me.crt" ]; then
+  echo "Generating SSL certificates for care.lvh.me..."
+  mkdir -p config/ssl
+  openssl req -x509 -newkey rsa:4096 -keyout config/ssl/care.lvh.me.key -out config/ssl/care.lvh.me.crt -days 365 -nodes -subj "/C=US/ST=CA/L=San Francisco/O=Development/CN=care.lvh.me"
+  echo "SSL certificates generated successfully!"
+fi
+
+# Prepare the database
+if [ ! -f "tmp/db-setup-done" ]; then
+  echo "Setting up database..."
+  bundle exec rails db:prepare
+  touch tmp/db-setup-done
+fi
+
+# Start Rails server with SSL using correct Puma binding syntax
+echo "Starting Rails development server with SSL at https://care.lvh.me:3000..."
+if [ "$SSL_ENABLED" = "true" ]; then
+  bundle exec puma -C config/puma.rb -b "ssl://0.0.0.0:3000?key=config/ssl/care.lvh.me.key&cert=config/ssl/care.lvh.me.crt"
+else
+  bundle exec rails server -b 0.0.0.0 -p 3000
+fi 

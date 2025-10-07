@@ -1,0 +1,122 @@
+  name: "hal"
+  services:
+
+    rails-test:
+      build: 
+        context: ..
+        dockerfile: Dockerfile
+      image: hal-dev-image
+      working_dir: /workspaces/hal
+      volumes:
+        - ../..:/workspaces/hal:cached
+        - rails-ssl-certs:/workspaces/hal/config/ssl
+        - bundle-cache:/workspaces/hal/vendor/bundle
+      ports:
+        - "3001:3001"
+      # environment:
+      #   - RAILS_ENV=test
+      #   - RACK_ENV=test
+      #   - REDIS_URL=redis://redis:6379/1
+      #   - SELENIUM_DRIVER_URL=http://selenium:4444/wd/hub
+      #   - HOSTNAME=care.lvh.me
+      #   # SSL Configuration for tests - using port 3001 to avoid conflicts
+      #   - SSL_ENABLED=true
+      #   - DOMAIN=care.lvh.me
+      #   - PROTOCOL=https
+      #   - PORT=3001
+      environment:
+        DOCKER-TEST: true
+        RAILS_ENV: test
+        REDIS_URL: redis://redis:6379/
+        DBUSER: postgres
+        DBPASS: postgres
+        DBHOST: postgres-test
+        DBNAME: hal_dev_test
+        PORT: 3001
+        SSL_ENABLED: true
+        SELENIUM_DRIVER_URL: http://selenium:4444/wd/hub
+        HOSTNAME: care.lvh.me
+        PROTOCOL: https
+        DOMAIN: care.lvh.me
+
+      depends_on:
+        - postgres
+        - redis
+        - selenium
+      stdin_open: true
+      tty: true
+      command: >
+        bash -c "
+          cd /workspaces/hal
+          # Install gems
+          bundle install &&
+
+          # Setup test database
+          bundle exec rails db:create db:migrate RAILS_ENV=test &&
+
+          # Start Rails server with SSL on port 3001 in background
+          bundle exec puma -C config/puma.rb -b 'ssl://0.0.0.0:3001?key=config/ssl/care.lvh.me.key&cert=config/ssl/care.lvh.me.crt' -e test &
+
+          # Wait for server to start
+          sleep 5 &&
+
+          # Wait for Selenium to be ready
+          echo 'Waiting for Selenium to be ready...' &&
+          curl -sSf http://selenium:4444/wd/hub/status --max-time 60 --retry 12 --retry-delay 5 || echo 'Selenium not ready, continuing anyway...' &&
+
+          # Run tests
+          bundle exec rspec spec/system/home_system_spec.rb:8
+        "
+
+      
+      networks:
+        - rails-network
+      # Ensure the container can be reached by hostname
+      hostname: care.lvh.me
+
+    postgres:
+      image: postgres:15-alpine
+      volumes:
+        - postgres-data:/var/lib/postgresql/data
+      environment:
+        - POSTGRES_DB=docker_rails_development
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=password
+        - POSTGRES_HOST_AUTH_METHOD=trust
+      ports:
+        - "5432:5432"
+      networks:
+        - rails-network
+
+    redis:
+      image: redis:7-alpine
+      volumes:
+        - redis-data:/data
+      ports:
+        - "6379:6379"
+      networks:
+        - rails-network
+
+    selenium:
+      image: seleniarm/standalone-chromium:latest
+      ports:
+        - "4444:4444"
+        - "7900:7900"
+      environment:
+        - SE_SCREEN_WIDTH=1920
+        - SE_SCREEN_HEIGHT=1080
+        - SE_SCREEN_DEPTH=24
+      volumes:
+        - /dev/shm:/dev/shm
+      networks:
+        - rails-network
+
+  networks:
+    rails-network:
+      driver: bridge
+
+  volumes:
+    rails-ssl-certs:
+    postgres-data:
+    redis-data: 
+    bundle-cache:

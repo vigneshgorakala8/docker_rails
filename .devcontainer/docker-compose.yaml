@@ -1,0 +1,228 @@
+services:
+  rails:
+    build: 
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/rails:cached
+      - rails-bundle-cache:/usr/local/bundle
+      - rails-node-modules:/rails/node_modules
+      - rails-ssl-certs:/rails/config/ssl
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../.env
+    environment:
+      - RAILS_ENV=development
+      - RACK_ENV=development
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/docker_rails_development
+      - REDIS_URL=redis://redis:6379/0
+      - RAILS_LOG_LEVEL=debug
+      - SELENIUM_DRIVER_URL=http://selenium:4444/wd/hub
+      # SSL Configuration
+      - SSL_ENABLED=true
+      - DOMAIN=care.lvh.me
+      - PROTOCOL=https
+      - PORT=3000
+    depends_on:
+      - postgres
+      - redis
+      - selenium
+      - gemstash
+    stdin_open: true
+    tty: true
+    command: >
+      bash -c "
+        # Configure Bundler to use Gemstash mirror
+        bundle config mirror.https://rubygems.org http://gemstash:9292 &&
+        bundle config mirror.https://rubygems.org.fallback_timeout 3 &&
+        
+        # Install gems through Gemstash
+        bundle install &&
+        
+        # Setup development database
+        bundle exec rails db:create db:migrate RAILS_ENV=development &&
+        
+        # Generate SSL certificates if they don't exist
+        if [ ! -f 'config/certs/key.pem' ] || [ ! -f 'config/certs/cert.pem' ]; then
+          echo 'Generating SSL certificates for development...'
+          mkdir -p config/certs
+          openssl req -x509 -newkey rsa:4096 -keyout config/certs/key.pem -out config/certs/cert.pem -days 365 -nodes -subj '/C=US/ST=CA/L=San Francisco/O=Development/CN=care.lvh.me'
+        fi &&
+        
+        # Start Rails server with SSL on port 3000
+        bundle exec puma -C config/puma.rb -b 'ssl://0.0.0.0:3000?key=config/certs/key.pem&cert=config/certs/cert.pem' -e development
+      "
+    networks:
+      - rails-network
+
+  rails-test:
+    build: 
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/rails:cached
+      - rails-bundle-cache:/usr/local/bundle
+      - rails-node-modules:/rails/node_modules
+      - rails-ssl-certs:/rails/config/ssl
+    ports:
+      - "3001:3001"
+    environment:
+      - DOCKER-TEST=true
+      - RAILS_ENV=test
+      - RACK_ENV=test
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/docker_rails_test
+      - REDIS_URL=redis://redis:6379/1
+      - SELENIUM_DRIVER_URL=http://selenium:4444/wd/hub
+      - HOSTNAME=care.lvh.me
+      - DOMAIN=care.lvh.me
+      - PROTOCOL=https
+      - PORT=3001
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      selenium:
+        condition: service_healthy
+      gemstash:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+    command: |
+      bash -c "
+        echo 'Starting test environment setup...' &&
+        cd /rails &&
+        
+        # Configure Bundler to use Gemstash mirror
+        bundle config mirror.https://rubygems.org http://gemstash:9292 &&
+        bundle config mirror.https://rubygems.org.fallback_timeout 3 &&
+        
+        # Install gems through Gemstash
+        bundle install && 
+        
+        # Setup test database
+        bundle exec rails db:create db:migrate RAILS_ENV=test &&
+        
+        echo 'Starting Rails server...' &&
+        if [ -f config/certs/key.pem ] && [ -f config/certs/cert.pem ]; then
+          echo 'SSL certificates found, starting with HTTPS...' &&
+          bundle exec puma -C config/puma.rb -b 'ssl://0.0.0.0:3001?key=config/certs/key.pem&cert=config/certs/cert.pem' -e test & 
+        else
+          echo 'SSL certificates not found, generating them...' &&
+          mkdir -p config/certs &&
+          openssl req -x509 -newkey rsa:4096 -keyout config/certs/key.pem -out config/certs/cert.pem -days 365 -nodes -subj '/C=US/ST=CA/L=San Francisco/O=Test/CN=care.lvh.me' &&
+          echo 'Starting Rails server with generated SSL certificates...' &&
+          bundle exec puma -C config/puma.rb -b 'ssl://0.0.0.0:3001?key=config/certs/key.pem&cert=config/certs/cert.pem' -e test & 
+        fi
+        
+        echo 'Waiting for Rails server to be ready...' &&
+        timeout 60 bash -c 'until curl -k -s https://localhost:3001 > /dev/null 2>&1; do echo \"Waiting for Rails server...\"; sleep 2; done' &&
+        echo 'Rails server is ready!' &&
+        
+        echo 'Verifying Selenium server connectivity...' &&
+        curl -sSf http://selenium:4444/wd/hub/status --max-time 10 --retry 3 --retry-delay 2 &&
+        echo 'Selenium server verified!' &&
+        
+        # Run tests
+        echo 'Running system tests...' &&
+        bundle exec rspec spec/system/home_system_spec.rb:8 &&
+        
+        # Keep container running
+        tail -f /dev/null"
+    networks:
+      - rails-network
+
+  postgres:
+    image: postgres:15-alpine
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=docker_rails_development
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rails-network
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rails-network
+
+  selenium:
+    image: seleniarm/standalone-chromium:latest
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    environment:
+      - SE_SCREEN_WIDTH=1920
+      - SE_SCREEN_HEIGHT=1080
+      - SE_SCREEN_DEPTH=24
+      - SE_START_XVFB=false
+      - SE_NODE_MAX_INSTANCES=2
+      - SE_NODE_MAX_SESSIONS=2
+    volumes:
+      - /dev/shm:/dev/shm
+    healthcheck:
+      test: ["CMD", "curl", "-sSf", "http://localhost:4444/wd/hub/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - rails-network
+
+  gemstash:
+    image: ruby:3.3.8-slim
+    ports:
+      - "9292:9292"
+    environment:
+      - GEMSTASH_BASE_PATH=/gemstash
+    volumes:
+      - gemstash-data:/gemstash
+    working_dir: /gemstash
+    command: >
+      bash -c "
+        apt-get update -qq &&
+        apt-get install --no-install-recommends -y build-essential curl &&
+        gem install gemstash &&
+        mkdir -p /gemstash &&
+        gemstash start --no-daemonize
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9292"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - rails-network
+
+networks:
+  rails-network:
+    driver: bridge
+
+volumes:
+  rails-bundle-cache:
+  rails-node-modules:
+  rails-ssl-certs:
+  postgres-data:
+  redis-data:
+  gemstash-data:

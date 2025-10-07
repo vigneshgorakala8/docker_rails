@@ -1,0 +1,25 @@
+# Gemstash configuration for Docker development environment
+---
+:cache_type: memory
+:base_path: /gemstash
+:bind: 0.0.0.0
+:port: 9292
+:rubygems_url: https://rubygems.org
+:db_adapter: sqlite3
+:db_url: sqlite3:/gemstash/gemstash.db
+:storage_path: /gemstash/gem_storage
+:upstream:
+  - :url: https://rubygems.org
+    :name: rubygems
+:cache_expiration: 1800  # 30 minutes
+:fetch_timeout: 20       # 20 seconds
+:protected_fetch: false
+:ignore_gemfile_source: false
+:puma:
+  :threads: 16
+  :workers: 1
+  :bind: "tcp://0.0.0.0:9292"
+  :daemonize: false
+  :redirect_stdout: "/dev/stdout"
+  :redirect_stderr: "/dev/stderr"
+  :pidfile: "/gemstash/puma.pid"

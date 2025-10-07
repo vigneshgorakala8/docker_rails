@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  scan_ruby:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build devcontainer image
+        run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
+
+      - name: Run Brakeman security scan
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/rails -w /rails rails-devcontainer \
+            bash -c "bundle install --jobs 4 --retry 3 && bin/brakeman --no-pager"
+
+  scan_js:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build devcontainer image
+        run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
+
+      - name: Run importmap audit
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/rails -w /rails rails-devcontainer \
+            bash -c "bundle install --jobs 4 --retry 3 && bin/importmap audit"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build devcontainer image
+        run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
+
+      - name: Run RuboCop linting
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/rails -w /rails rails-devcontainer \
+            bash -c "bundle install --jobs 4 --retry 3 && bin/rubocop -f github"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create test environment with docker-compose
+        run: |
+          # Use the existing devcontainer docker-compose setup
+          cd .devcontainer
+          docker-compose -f docker-compose.yaml up -d postgres redis
+          
+          # Wait for services to be ready
+          docker-compose -f docker-compose.yaml exec -T postgres pg_isready -U postgres
+          docker-compose -f docker-compose.yaml exec -T redis redis-cli ping
+
+      - name: Build and run tests in devcontainer
+        run: |
+          cd .devcontainer
+          # Build the Rails container
+          docker-compose -f docker-compose.yaml build rails-test
+          
+          # Run tests
+          docker-compose -f docker-compose.yaml run --rm -e RAILS_ENV=test rails-test \
+            bash -c "
+              bundle install --jobs 4 --retry 3 &&
+              bin/rails db:create db:migrate RAILS_ENV=test &&
+              bundle exec rspec --format documentation &&
+              bin/rails test:system
+            "
+
+      - name: Keep screenshots from failed system tests
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: screenshots
+          path: ${{ github.workspace }}/tmp/screenshots
+          if-no-files-found: ignore
+
+      - name: Cleanup
+        if: always()
+        run: |
+          cd .devcontainer
+          docker-compose -f docker-compose.yaml down -v
