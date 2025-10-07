@@ -51,7 +51,7 @@ group :development, :test do
   gem "rubocop-rspec", require: false
 
   # RSpec testing framework [https://github.com/rspec/rspec-rails]
-  gem "rspec-rails", "~> 6.0"
+  gem "rspec-rails", "~> 8.0"
 
   # Rails controller testing helpers [https://github.com/rails/rails-controller-testing]
   gem "rails-controller-testing"
