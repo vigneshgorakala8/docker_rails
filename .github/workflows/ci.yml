@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build devcontainer image
         run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build devcontainer image
         run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build devcontainer image
         run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
@@ -91,7 +91,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build devcontainer image
         run: docker build -f .devcontainer/Dockerfile -t rails-devcontainer .
